@@ -14,20 +14,47 @@ const firestore = new Firestore({
 
 // subscribe is the main function called by Cloud Functions.
 module.exports.subscribe = async (data, context) => {
-    const pubSubMessage = data;
-    const parsedMessage = parseMessage(pubSubMessage.data);
+    const parsedMessage = parseMessage(data.data);
 
     console.log(JSON.stringify(parsedMessage));
 
     const timestamp = parsedMessage.timestamp;
-    const volumeId = parsedMessage.from_address_label + '__' + parsedMessage.to_address_label;
+    const date = new Date(timestamp);
 
-    return firestore.collection(COLLECTION_NAME).doc(timestamp)
-        .collection('volume').doc(volumeId).set({
+    const batch = firestore.batch();
+
+    const rootDocRef = firestore.collection(COLLECTION_NAME).doc(timestamp);
+    batch.set(rootDocRef, {
+        timestamp: Firestore.Timestamp.fromDate(date)
+    });
+
+    // TODO: Refactor duplication
+
+    const volumeId = parsedMessage.from_address_label + '__' + parsedMessage.to_address_label;
+    const childDocRef = rootDocRef.collection('volume').doc(volumeId);
+    batch.set(childDocRef, {
         from: parsedMessage.from_address_label,
         to: parsedMessage.to_address_label,
         amount: parsedMessage.volume
-    }).then(doc => {
+    });
+
+    // latest
+
+    const latestRootDocRef = firestore.collection(COLLECTION_NAME).doc('latest');
+    batch.set(latestRootDocRef, {
+        timestamp: Firestore.Timestamp.fromDate(date)
+    });
+
+    const latestChildDocRef = latestRootDocRef.collection('volume').doc(volumeId);
+    batch.set(latestChildDocRef, {
+        from: parsedMessage.from_address_label,
+        to: parsedMessage.to_address_label,
+        amount: parsedMessage.volume
+    });
+
+    // commit
+
+    return batch.commit().then(doc => {
         console.info('stored new doc id#', timestamp + '_' + volumeId);
     }).catch(err => {
         console.error(err);
