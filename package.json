@@ -4,7 +4,7 @@
   "description": "Write PubSub message to Firestore",
   "main": "index.js",
   "dependencies": {
-    "@google-cloud/firestore": "0.17.0",
+    "@google-cloud/firestore": "6.2.0",
     "semver": "^5.5.1"
   }
 }
